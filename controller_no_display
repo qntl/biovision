@@ -1,0 +1,100 @@
+/*
+Biovision Microscope Controller v0.1
+
+Input via USB serial port a string:
+	"Exposure duration [ms], Interval [ms], Number of frames"
+	
+Output pulses to two BNC connectors
+
+Timing is delayed by 0.04 ms/pulse.
+Delay between output 1 and 2 should be ~5 us; not verified
+
+*/
+
+#define LEDpin 13
+#define OUT1 2
+#define OUT2 3
+
+int setting[3];
+int i = 1;
+int count = 0;
+long ms = 0;
+char input[32];
+boolean validSettings = false;
+
+void setup()
+{
+	pinMode(LEDpin,OUTPUT);
+	digitalWrite(LEDpin, HIGH);  	// default turn on status LED
+	
+	Serial.begin(9600);  			// initialize serial communication
+	Serial.println(F("Biovision Microscope Controller v0.1"));
+	Serial.println();
+	Serial.println(F("Enter serial settings data:"));
+	Serial.println(F("  Exposure duration [ms], Interval [ms], Number of frames"));
+	Serial.println();
+}
+
+void loop()
+{
+	// check for serial input and parse settings
+	while (Serial.available() > 0)
+	{
+
+		byte size = Serial.readBytes(input, 32);
+		input[size] = 0;			// Add the final 0 to end the string
+
+		Serial.print(F("Parse input: ")); Serial.print(input);
+		
+		i = 0;
+		validSettings = false;
+		// Parse exposure duration [ms], interval[ms], number of frames
+		char* command = strtok(input, " ,");
+		while (command != 0)
+		{
+			//Serial.print(" "); Serial.print(command); 
+
+			setting[i++] = atoi(command);
+
+			// Find the next command in input string
+			command = strtok(0, " ,");
+		}
+		
+		if (i>=3) 
+		{
+			count = 0;
+			validSettings = true;
+			Serial.print("Exposure "); Serial.print(setting[0]); 
+			Serial.print(" ms every "); Serial.print(setting[1]); 
+			Serial.print(" ms for "); Serial.print(setting[2]); 
+			Serial.println(" frames.");
+			ms = millis();
+		}
+	}
+	
+	if (validSettings)
+	{
+		if (count < setting[2]) 
+		{
+	  		digitalWrite(LEDpin, HIGH);   	// turn the LED on (HIGH is the voltage level)
+		  	digitalWrite(OUT1, HIGH);
+		  	digitalWrite(OUT2, HIGH);
+	  	
+  			delay(setting[0]);              			// wait duration
+  		
+	 		digitalWrite(LEDpin, LOW);    	// turn the LED off by making the voltage LOW
+  			digitalWrite(OUT1, LOW);
+	  		digitalWrite(OUT2, LOW);
+	  	
+	 		delay(setting[1]-setting[0]);              	// wait interval
+  			
+			count++;
+			//Serial.println(count);
+		} else if (count == setting[2]) 		// end reached
+		{
+			Serial.print("Finished. Duration: "); Serial.print(millis()-ms); Serial.println(" ms.");
+			count++;
+		}
+	}
+	
+}
